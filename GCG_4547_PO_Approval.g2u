@@ -1,0 +1,413 @@
+Program.Sub.ScreenSU.Start
+Gui.Form..Create
+Gui.Form..Caption("Purchase Order Approval")
+Gui.Form..Size(15120,12225)
+Gui.Form..MinX(0)
+Gui.Form..MinY(0)
+Gui.Form..Position(0,0)
+Gui.Form..BackColor(-2147483633)
+Gui.Form..MousePointer(0)
+Gui.Form..Event(UnLoad,Form_UnLoad)
+Gui.Form.gs.Create(GsGridControl)
+Gui.Form.gs.Size(14685,9615)
+Gui.Form.gs.Position(105,1380)
+Gui.Form.gs.Event(RowCellClick,gs_RowCellClick)
+Gui.Form.cmdRefresh.Create(Button)
+Gui.Form.cmdRefresh.Size(855,375)
+Gui.Form.cmdRefresh.Position(12885,900)
+Gui.Form.cmdRefresh.Caption("Refresh")
+Gui.Form.cmdRefresh.Event(Click,cmdRefresh_Click)
+Gui.Form.txtPONum.Create(TextBox,"",True,855,300,0,135,11325,True,0,"Arial",8,-2147483643,1)
+Gui.Form.txtPONum.MaxLength(7)
+Gui.Form.txtPONum.Event(LostFocus,txtPONum_LostFocus)
+Gui.Form.lblPONum.Create(Label,"PO number",True,1185,255,0,105,11100,True,0,"Arial",8,-2147483633,0)
+Gui.Form.cmdBrowsePO.Create(Button)
+Gui.Form.cmdBrowsePO.Size(630,375)
+Gui.Form.cmdBrowsePO.Position(1110,11280)
+Gui.Form.cmdBrowsePO.Caption("^")
+Gui.Form.cmdBrowsePO.Event(Click,cmdBrowsePO_Click)
+Gui.Form.picGSSLogo.Create(PictureBox)
+Gui.Form.picGSSLogo.Size(5865,1125)
+Gui.Form.picGSSLogo.Position(4530,135)
+Gui.Form.cmdSave.Create(Button)
+Gui.Form.cmdSave.Size(855,375)
+Gui.Form.cmdSave.Position(13905,900)
+Gui.Form.cmdSave.Caption("Save")
+Gui.Form.cmdSave.Event(Click,cmdSave_Click)
+Gui.Form.cmdSave.Enabled(False)
+Gui.Form.dtpBegPODate.Create(DatePicker)
+Gui.Form.dtpBegPODate.Size(1935,285)
+Gui.Form.dtpBegPODate.Position(10845,945)
+Gui.Form.lblBegPODate.Create(Label,"Beginning PO date",True,1845,255,0,10845,705,True,0,"Arial",8,-2147483633,0)
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+v.Global..BulkDeclareBoolean(bChanged)
+v.Global..BulkDeclareString(sGSSerialize)
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+'BN June 14, 2017
+'This program allows user to approve and view Purchase Orders.
+
+F.Intrinsic.Control.SetErrorHandler("Main_Err")
+F.Intrinsic.Control.ClearErrors
+V.Local..BulkDeclareString(sError, sGSSLogo)
+
+F.ODBC.Connection!con.OpenConnection(V.Ambient.PDSN,v.Ambient.PUser,v.Ambient.PPass,300)
+F.Intrinsic.String.Build("{0}\GAB\GAS\GAB_GSS_Logo_Green_Dash.png",V.Caller.PluginsDir,V.Local.sGssLogo)
+Gui.Form.picGSSLogo.Picture(V.Local.sGssLogo)
+'Set default beginning PO date
+Gui.Form.dtpBegPODate.Value("2017-01-01")
+f.Intrinsic.Control.CallSub(setanchors)
+f.Intrinsic.UI.InvokeWaitDialog("Loading data...")
+f.Intrinsic.Control.CallSub(getdata,"sByDateOrByPO","By Date")
+f.Intrinsic.UI.CloseWaitDialog
+gui.Form..Show
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Main_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4547_PO_Approval.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.Main.End
+
+Program.Sub.SetAnchors.Start
+F.Intrinsic.Control.SetErrorHandler("SetAnchors_Err")
+F.Intrinsic.Control.ClearErrors
+V.Local.sError.Declare(String)
+
+Gui.Form.picGSSLogo.Anchor(1)
+Gui.Form.lblBegPODate.Anchor(9)
+gui.Form.dtpBegPODate.Anchor(9)
+Gui.Form.cmdRefresh.Anchor(9)
+Gui.Form.cmdSave.Anchor(9)
+Gui.Form.gs.Anchor(15)
+Gui.Form.lblPONum.Anchor(6)
+Gui.Form.txtPONum.Anchor(6)
+gui.Form.cmdBrowsePO.Anchor(6)
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("SetAnchors_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4547_PO_Approval.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.SetAnchors.End
+
+Program.Sub.Form_UnLoad.Start
+F.Intrinsic.Control.SetErrorHandler("Form_UnLoad")
+F.Intrinsic.Control.ClearErrors
+v.Local..BulkDeclareString(sError)
+
+'Check to see if there are any unsaved records, if there are, ask users to save
+f.Intrinsic.Control.CallSub(check_unsaved)
+
+f.ODBC.Connection!con.Close
+f.Intrinsic.Control.End
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Form_UnLoad")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4547_PO_Approval.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.Form_UnLoad.End
+
+Program.Sub.GetData.Start
+F.Intrinsic.Control.SetErrorHandler("GetData_Err")
+F.Intrinsic.Control.ClearErrors
+V.Local..BulkDeclareString(sError,sBegDate,sSQL, sWhere_Clause)
+v.Local..BulkDeclareLong(iCounter)
+
+f.Intrinsic.Control.If(v.Args.sByDateOrByPO,=,"By Date")
+	f.Intrinsic.String.Format(v.Screen.Form!dtpBegPODate.Value,"YYYY-MM-DD",V.Local.sBegDate)
+	f.Intrinsic.String.Build("where m.Date_Order >= '{0}'",v.Local.sBegDate,v.Local.sWhere_Clause)
+f.Intrinsic.Control.ElseIf(v.Args.sByDateOrByPO,=,"By PO")
+	f.Intrinsic.String.Build("where m.Purchase_Order = '{0}'",v.Screen.Form!txtPONum.Text,v.Local.sWhere_Clause)
+f.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.If(V.DataTable.DT.Exists,=,True)
+	F.Data.DataTable.Close("DT")
+F.Intrinsic.Control.EndIf
+
+f.Intrinsic.String.Build("Select m.Purchase_Order, v.Vendor,v.Name_Vendor,a.Approved, a.Approved_By, a.Date_Approved from V_PO_header m join V_Vendor_Master v on m.Vendor = v.Vendor left join GCG_4547_Appr_Pos a on m.Purchase_Order = a.Purchase_Order {0} Order by m.Purchase_Order", V.Local.sWhere_Clause,V.Local.sSQL)
+f.Data.DataTable.CreateFromSQL("DT","con",v.Local.sSQL,True)
+f.Data.DataTable.AddColumn("DT","To_Save",string,"")
+gui.Form.gs.addgridviewfromdatatable("GV","DT")
+f.Intrinsic.Control.For(v.Local.iCounter,0,v.DataTable.DT.Rowcount--,1)
+	'Process records having Approved blank values(which cause checkbox to display a black rectangular), then assign them as False
+	f.Intrinsic.Control.If(v.DataTable.DT(v.Local.iCounter).Approved!FieldValString,=,"")
+		Function.Data.DataTable.SetValue("DT",v.Local.iCounter,"Approved","False")
+	f.Intrinsic.Control.EndIf(v.Local.iCounter)
+	'Format Purchase Order column
+	Gui.Form.Gs.SetCellAppearance("GV", 0, v.Local.iCounter, "forecolor", v.Color.LtBlue)
+	Gui.Form.Gs.SetCellAppearance("GV", 0, v.Local.iCounter, "FontUnderline", "True")
+f.Intrinsic.Control.Next(v.Local.iCounter)
+
+f.Intrinsic.Control.CallSub(formatgrid)
+gui.Form.gs.MainView("GV")
+gui.Form.cmdSave.Enabled(False)
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("GetData_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4547_PO_Approval.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+Program.Sub.GetData.End
+
+Program.Sub.FormatGrid.Start
+F.Intrinsic.Control.SetErrorHandler("FormatGrid_Err")
+F.Intrinsic.Control.ClearErrors
+V.Local.sError.Declare(String)
+
+'Make the columns Purchase_Order and Approved response to Click event
+Gui.Form.gs.SetColumnProperty("GV","Approved","AllowEdit",False)
+Gui.Form.gs.SetColumnProperty("GV","Approved","ReadOnly",True)
+Gui.Form.gs.SetColumnProperty("GV","Purchase_Order","AllowEdit",False)
+Gui.Form.gs.SetColumnProperty("GV","Purchase_Order","ReadOnly",True)
+
+'Column caption
+Gui.Form.gs.SetColumnProperty("GV","Purchase_Order","CAPTION","Purchase Order")
+Gui.Form.gs.SetColumnProperty("GV","Name_Vendor","CAPTION","Vendor Name")
+Gui.Form.gs.SetColumnProperty("GV","Approved_By","CAPTION","Approved by")
+Gui.Form.gs.SetColumnProperty("GV","Date_Approved","CAPTION","Date approved")
+Gui.Form.gs.SetColumnProperty("GV","To_Save","CAPTION","To Save")
+
+'Header, alignment and column width
+Gui.Form.gs.SetColumnProperty("GV","Approved","headerhalignment","center")
+Gui.Form.gs.SetColumnProperty("GV","To_Save","headerhalignment","center")
+Gui.Form.gs.SetColumnProperty("GV","To_Save","MaxWidth","60")
+Gui.Form.gs.SetColumnProperty("GV","To_Save","Cellhalignment","Center")
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("FormatGrid_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4547_PO_Approval.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.FormatGrid.End
+
+Program.Sub.gs_RowCellClick.Start
+F.Intrinsic.Control.SetErrorHandler("gs_RowCellClick_Err")
+F.Intrinsic.Control.ClearErrors
+
+v.Local..BulkDeclareString(sError, sSQL, sParamsOpenPO, sLastChange)
+v.Local.iFlag.Declare(long)
+v.Local..BulkDeclareBoolean(bGroup)
+
+
+F.Intrinsic.Control.If(V.Args.Column,=,"Approved")
+	'when Approved column is clicked
+	Function.Global.Security.IsInGroup(V.Caller.User,"POAPPR",V.Caller.CompanyCode,V.Local.bGroup)
+	F.Intrinsic.Control.If(V.Local.bGroup,=,False)
+		f.Intrinsic.UI.Msgbox("User is not in PO Approvers group")
+		f.Intrinsic.Control.ExitSub
+	f.Intrinsic.Control.EndIf
+
+	f.Data.DataTable.SetValue("DT",v.Args.RowIndex,"To_Save","X")
+	F.Intrinsic.Control.If(v.DataTable.DT(v.Args.RowIndex).Approved!FieldValTrim,=,"False")
+		f.Data.DataTable.SetValue("DT",v.Args.RowIndex,"Approved",True,"Approved_By",v.Caller.User,"Date_Approved",v.Ambient.Now)		
+		Gui.Form.Gs.SetCellAppearance("GV", 3, v.Args.RowIndex, "backcolor", v.Color.PRI-GSS-01)
+	F.Intrinsic.Control.Else(v.DataTable.DT(v.Args.RowIndex).Approved!FieldValTrim,=,"True")
+		f.Data.DataTable.SetValue("DT",v.Args.RowIndex,"Approved",False,"Approved_By","","Date_Approved","")
+		Gui.Form.Gs.SetCellAppearance("GV", 3, v.Args.RowIndex, "backcolor", v.Color.SEC-GSS-06)
+	F.Intrinsic.Control.EndIf	
+	
+	v.Global.bChanged.Set(True)
+	gui.Form.cmdSave.Enabled(True)		
+
+Function.Intrinsic.Control.ElseIf(v.Args.Column,=,"Purchase_Order")
+	'When Purchase Order column is clicked	
+	f.Intrinsic.String.Build("O!*!{0}!*!",v.DataTable.DT(v.Args.RowIndex).Purchase_Order!FieldValString,v.Local.sParamsOpenPO)
+	F.Global.General.CallWrapperASync(175200,v.Local.sParamsOpenPO)
+f.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("gs_RowCellClick_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4547_PO_Approval.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.gs_RowCellClick.End
+
+Program.Sub.cmdRefresh_Click.Start
+F.Intrinsic.Control.SetErrorHandler("cmdRefresh_Click_Err")
+F.Intrinsic.Control.ClearErrors
+v.Local..BulkDeclareString(sError, sReturn)
+
+'Check to see if there is unsaved records, ask to save
+f.Intrinsic.Control.CallSub(check_unsaved)
+
+f.Intrinsic.UI.InvokeWaitDialog("Refreshing....")
+Gui.Form.gs.Serialize("GV", v.Global.sGSSerialize)
+gui.Form.txtPONum.Text("")
+f.Intrinsic.Control.CallSub(getdata,"sByDateOrByPO","By Date")
+Gui.Form.Gs.Deserialize(v.Global.sGSSerialize)
+f.Intrinsic.UI.CloseWaitDialog
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("cmdRefresh_Click_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4547_PO_Approval.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+Program.Sub.cmdRefresh_Click.End
+
+Program.Sub.cmdSave_Click.Start
+F.Intrinsic.Control.SetErrorHandler("cmdSave_Click_Err")
+F.Intrinsic.Control.ClearErrors
+v.Local..BulkDeclareString(sError, sSQL, sUnApprovedRange)
+v.Local..BulkDeclareLong(iCounter)
+
+f.Intrinsic.UI.InvokeWaitDialog("Saving...")
+
+'Processing Approved
+f.Data.DataView.Create("DT","Appr_DV",22,"Approved = True and To_Save = 'X'","Purchase_Order Asc")
+Function.Data.DataView.ToDataTable("DT", "Appr_DV", "Appr_DT", True)
+Function.Data.DataTable.SaveToDB("Appr_DT", "con", "GCG_4547_Appr_POs", "Purchase_Order", 256, "Purchase_Order@!@Purchase_Order*!*Approved_By@!@Approved_By*!*Date_Approved@!@Date_Approved*!*Approved@!@Approved")
+f.Data.DataView.Close("DT","Appr_DV")
+f.Data.DataTable.Close("Appr_DT")
+
+'Processing unApproved
+f.Data.DataView.Create("DT","UnAppr_DV",22,"Approved = False and To_Save = 'X'","Purchase_Order Asc")
+Function.Data.DataView.ToDataTable("DT", "UnAppr_DV", "UnAppr_DT", True)
+f.Intrinsic.Control.For(v.Local.iCounter,0,v.DataTable.UnAppr_DT.RowCount--,1)
+	f.Intrinsic.Control.If(v.Local.iCounter,=,0)
+		f.Intrinsic.String.Build("'{0}'",v.DataTable.UnAppr_DT(v.Local.iCounter).Purchase_Order!FieldValString,v.Local.sUnApprovedRange)
+	f.Intrinsic.Control.Else
+		f.Intrinsic.String.Concat(v.Local.sUnApprovedRange,", '",v.DataTable.UnAppr_DT(v.Local.iCounter).Purchase_Order!FieldValString,"'",v.Local.sUnApprovedRange)
+	f.Intrinsic.Control.EndIf
+f.Intrinsic.Control.Next(v.Local.iCounter)
+
+f.Intrinsic.Control.If(v.DataTable.UnAppr_DT.RowCount,>,0)
+	f.Intrinsic.String.Build("Update GCG_4547_Appr_POs set Approved = 0, Approved_By = '', Date_Approved = '' where Purchase_Order in ({0})",v.Local.sUnApprovedRange,v.Local.sSQL)
+	f.ODBC.Connection!con.Execute(v.Local.sSQL)
+f.Intrinsic.Control.EndIf
+f.Data.DataView.Close("DT","UnAppr_DV")
+f.Data.DataTable.Close("UnAppr_DT")
+
+v.Global.bChanged.Set(False)
+gui.Form.cmdSave.Enabled(False)
+f.Intrinsic.UI.CloseWaitDialog
+
+f.Intrinsic.Control.If(v.Args.GetUpdatedDataOrNot,=,"NO")
+	f.Intrinsic.Control.ExitSub
+f.Intrinsic.Control.EndIf
+
+f.Intrinsic.UI.InvokeWaitDialog("Getting updated data...")
+Gui.Form.gs.Serialize("GV", v.Global.sGSSerialize)
+f.Intrinsic.Control.CallSub(getdata,"sByDateOrByPO","By Date")
+Gui.Form.Gs.Deserialize(v.Global.sGSSerialize)
+f.Intrinsic.UI.CloseWaitDialog
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("cmdSave_Click_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4547_PO_Approval.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.cmdSave_Click.End
+
+Program.Sub.check_UnSaved.Start
+F.Intrinsic.Control.SetErrorHandler("check_UnSaved_Err")
+F.Intrinsic.Control.ClearErrors
+v.Local..BulkDeclareString(sError, sFlag)
+
+'Check to see if there is changes not saved
+f.Intrinsic.Control.If(v.Global.bChanged,=,True)	
+	F.Intrinsic.UI.Msgbox("Do you want to save changes?", "Changes to be saved", 4, V.Local.sFlag)
+	F.Intrinsic.Control.If(V.Local.sFlag,=, 6)
+		'Yes
+		f.Intrinsic.Control.CallSub(cmdsave_click,"GetUpdatedDataOrNot","NO")					
+	f.Intrinsic.Control.ElseIf(V.Local.sFlag,=, 7)
+		'No
+		v.Global.bChanged.Set(False)
+	f.Intrinsic.Control.EndIf
+f.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("check_UnSaved_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4547_PO_Approval.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.check_UnSaved.End
+
+Program.Sub.cmdBrowsePO_Click.Start
+F.Intrinsic.Control.SetErrorHandler("cmdBrowsePO_Click_Err")
+F.Intrinsic.Control.ClearErrors
+v.Local..BulkDeclareString(sError, sRet)
+
+Function.Intrinsic.UI.SetBrowserHotTypeAhead(True)
+f.Intrinsic.UI.Browser(4000,"",v.Local.sRet)
+
+Function.Intrinsic.Control.If(Variable.Local.sRet,"=","***CANCEL***")
+ 	Function.Intrinsic.UI.Msgbox("No Purchase Order was selected!")
+	f.Intrinsic.Control.ExitSub
+f.Intrinsic.Control.Else
+	f.Intrinsic.String.Split(v.Local.sRet,"*!*",v.Local.sRet)
+	gui.Form.txtPONum.Text(v.Local.sRet(0))
+	f.Intrinsic.Control.CallSub(getdata,"sByDateOrByPO","By PO")
+f.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("cmdBrowsePO_Click_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4547_PO_Approval.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.cmdBrowsePO_Click.End
+
+Program.Sub.txtPONum_LostFocus.Start
+F.Intrinsic.Control.SetErrorHandler("txtPONum_LostFocus_Err")
+F.Intrinsic.Control.ClearErrors
+V.Local.sError.Declare(String)
+
+'Check to see if there is unsaved records, ask to save
+f.Intrinsic.Control.CallSub(check_unsaved)
+
+f.Intrinsic.Control.CallSub(getdata,"sByDateOrByPO","By PO")
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("txtPONum_LostFocus_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4547_PO_Approval.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.txtPONum_LostFocus.End
+
+Program.Sub.Comments.Start
+${$0$}$$}$$}$6/14/2017 10:12:29 AM$}$False
+Program.Sub.Comments.End
